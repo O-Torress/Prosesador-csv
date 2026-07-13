@@ -1,100 +1,86 @@
 # CSVLib Java
 
-CSVLib Java es una pequeña librería orientada a objetos para trabajar con archivos CSV mediante un modelo de tabla inmutable por composición y una fachada de alto nivel llamada `CsvDocument`.
+CSVLib Java es una pequeña librería orientada a objetos para procesar tablas CSV mediante una fachada `CsvDocument` y un modelo `Table`.
 
 ## 1. ¿Qué ofrece la librería?
 
-La biblioteca se apoya en estos conceptos principales:
+La versión actual del proyecto está organizada en torno a estos conceptos:
 
-- `Table`: representa la estructura tabular (`headers` + `rows`) y sirve como modelo de datos central.
-- `CsvDocument`: fachada que encapsula lectura, modificación, renderizado y escritura.
-- `IReader`: define cómo cargar una fuente CSV.
-- `IWriter`: define cómo guardar una tabla en un destino.
-- `IRenderer`: define cómo presentar la tabla en consola u otro formato.
-- `IOperation`: define transformaciones sobre la tabla.
-- `IMiddleware`: permite interceptar o modificar el resultado del pipeline sin alterar la lógica base.
+- `Table`: representa la estructura tabular (`headers` + `rows`).
+- `CsvDocument`: fachada de alto nivel para cargar, modificar, renderizar y guardar una tabla.
+- `IReader`, `IWriter`, `IRenderer`: contratos para abstraer lectura, escritura y presentación.
+- `IOperation`: contrato para transformaciones aplicables sobre una tabla.
+- `IMiddleware`: extensión del flujo del pipeline mediante interceptores.
 
-La idea de diseño es que la librería sea extensible mediante nuevas implementaciones de interfaces, en lugar de modificar las clases internas existentes.
+La intención de diseño es seguir un enfoque extensible por composición e interfaces.
 
-## 2. Estructura del proyecto
+## 2. Estructura actual del proyecto
 
-La parte principal del código fuente se encuentra en:
+La implementación real del proyecto está distribuida así:
 
-- `csvlib-java/src/ejemplos/main/CsvDocumento.java` — fachada pública de uso.
-- `csvlib-java/src/ejemplos/main/Tabla.java` — modelo de la tabla.
+- `csvlib-java/src/ejemplos/main/CsvDocument.java` — fachada pública de uso.
+- `csvlib-java/src/ejemplos/main/Table.java` — modelo de la tabla.
 - `csvlib-java/src/ejemplos/main/IReader.java` — interfaz para lectura.
 - `csvlib-java/src/ejemplos/main/IWriter.java` — interfaz para escritura.
 - `csvlib-java/src/ejemplos/main/IRenderer.java` — interfaz para renderizado.
 - `csvlib-java/src/ejemplos/main/IOperation.java` — interfaz para transformaciones.
 - `csvlib-java/src/ejemplos/main/IMiddleware.java` — interfaz para middleware.
+- `csvlib-java/src/com/csvlib/io/` — implementaciones concretas de reader, writer y renderers.
+- `csvlib-java/src/com/csvlib/operations/` — operaciones y pipeline.
+- `csvlib-java/src/ejemplos/BasicUsage.java` — ejemplo de uso.
 
 ## 3. Cómo usar la librería
 
-### 3.1. Cargar un CSV
+### 3.1. Cargar un CSV desde texto
 
 ```java
 import com.csvlib.facade.CsvDocument;
+import com.csvlib.io.CsvStringReader;
 
-CsvDocument doc = CsvDocument.load("datos.csv");
-```
-
-Si quieres usar un lector personalizado:
-
-```java
-CsvDocument doc = CsvDocument.load("datos.csv", new MiReader());
+String csv = "id,producto,precio\n1,Cafe,3.50\n2,Te,2.00\n3,Jugo,4.25";
+CsvDocument doc = CsvDocument.load(csv, new CsvStringReader());
 ```
 
 ### 3.2. Modificar la tabla
 
-La fachada permite encadenar operaciones de forma cómoda:
-
 ```java
-CsvDocument doc = CsvDocument.load("datos.csv")
+CsvDocument doc = CsvDocument.load(csv, new CsvStringReader())
     .addColumn("moneda", "USD")
     .addRow(List.of("4", "Agua", "1.00", "USD"))
     .removeRow(1);
 ```
 
-También puedes trabajar directamente sobre la tabla construida:
-
-```java
-Table table = doc.build();
-```
-
-### 3.3. Mostrar la salida
+### 3.3. Mostrar la salida por consola
 
 ```java
 doc.print();
 ```
 
-Esto usa el renderer por defecto (`ConsoleRenderer`). Si quieres cambiar la forma de presentación:
+### 3.4. Renderizar en Markdown
 
 ```java
-CsvDocument doc = new CsvDocument(table, new MiRenderer());
-doc.print();
+Table result = doc.getTable();
+CsvDocument doc2 = new CsvDocument(result, new MarkdownRenderer());
+doc2.print();
 ```
 
-### 3.4. Guardar el resultado
+### 3.5. Guardar la salida en un archivo CSV
 
 ```java
 doc.save("salida.csv");
 ```
 
-O con un escritor propio:
+## 4. Ejemplo completo
 
 ```java
-doc.save("salida.csv", new MiWriter());
-```
+package com.csvlib.examples;
 
-## 4. Ejemplo completo de uso
-
-```java
 import com.csvlib.core.Table;
 import com.csvlib.facade.CsvDocument;
+import com.csvlib.io.CsvStringReader;
 import com.csvlib.io.MarkdownRenderer;
 
 import java.util.Arrays;
-import java.util.List;
 
 public class BasicUsage {
     public static void main(String[] args) {
@@ -109,6 +95,7 @@ public class BasicUsage {
         System.out.println("== Consola ==");
         doc.print();
 
+        System.out.println("\n== Markdown ==");
         Table result = doc.getTable();
         CsvDocument doc2 = new CsvDocument(result, new MarkdownRenderer());
         doc2.print();
@@ -116,138 +103,20 @@ public class BasicUsage {
 }
 ```
 
-## 5. Cómo extender la librería sin tocar el código base
+## 5. Extensión del proyecto
 
-La librería está preparada para crecer por extensión, no por modificación. La clave está en implementar las interfaces y registrarlas a través de `CsvDocument`.
+La librería está preparada para ampliarse creando nuevas implementaciones de las interfaces del núcleo:
 
-### 5.1. Crear un lector nuevo
+- `IReader` para nuevas fuentes de entrada.
+- `IWriter` para nuevos destinos de salida.
+- `IRenderer` para nuevas representaciones visuales.
+- `IOperation` para nuevas transformaciones.
+- `IMiddleware` para interceptar o modificar el flujo del pipeline.
 
-Implementa `IReader`:
+## 6. Estado actual
 
-```java
-package com.miapp.io;
+El proyecto ya está compilable y el ejemplo principal se ejecuta correctamente con una salida válida en consola y Markdown.
 
-import com.csvlib.core.IReader;
-import com.csvlib.core.Table;
-
-public class JsonReader implements IReader {
-    @Override
-    public Table read(String source) {
-        // Convierte JSON o cualquier fuente a Table
-        return new Table(new java.util.ArrayList<>(), new java.util.ArrayList<>());
-    }
-}
-```
-
-Uso:
-
-```java
-CsvDocument doc = CsvDocument.load("datos.json", new JsonReader());
-```
-
-### 5.2. Crear un escritor nuevo
-
-Implementa `IWriter`:
-
-```java
-package com.miapp.io;
-
-import com.csvlib.core.IWriter;
-import com.csvlib.core.Table;
-
-public class HtmlWriter implements IWriter {
-    @Override
-    public void write(Table table, String target) {
-        // Guarda la tabla en HTML
-    }
-}
-```
-
-Uso:
-
-```java
-doc.save("reporte.html", new HtmlWriter());
-```
-
-### 5.3. Crear un renderer nuevo
-
-Implementa `IRenderer`:
-
-```java
-package com.miapp.render;
-
-import com.csvlib.core.IRenderer;
-import com.csvlib.core.Table;
-
-public class CsvTableRenderer implements IRenderer {
-    @Override
-    public String render(Table table) {
-        // Genera una cadena formateada para CSV, HTML, texto, etc.
-        return "";
-    }
-}
-```
-
-Uso:
-
-```java
-new CsvDocument(table, new CsvTableRenderer()).print();
-```
-
-### 5.4. Crear una operación nueva
-
-Implementa `IOperation`:
-
-```java
-package com.miapp.operations;
-
-import com.csvlib.core.IOperation;
-import com.csvlib.core.Table;
-
-public class UppercaseNames implements IOperation {
-    @Override
-    public Table apply(Table table) {
-        // Transformación sobre table
-        return table;
-    }
-}
-```
-
-Uso:
-
-```java
-CsvDocument doc = CsvDocument.load("datos.csv");
-doc.apply(new UppercaseNames());
-```
-
-### 5.5. Crear middleware para interceptar el flujo
-
-Implementa `IMiddleware`:
-
-```java
-package com.miapp.middleware;
-
-import com.csvlib.core.IMiddleware;
-import com.csvlib.core.Table;
-
-import java.util.function.Function;
-
-public class LoggingMiddleware implements IMiddleware {
-    @Override
-    public Table process(Table table, Function<Table, Table> next) {
-        System.out.println("Antes de ejecutar pipeline: " + table);
-        Table result = next.apply(table);
-        System.out.println("Después de ejecutar pipeline: " + result);
-        return result;
-    }
-}
-```
-
-Uso:
-
-```java
-doc.use(new LoggingMiddleware());
-```
 
 ## 6. Principios de diseño que hacen extensible la librería
 
